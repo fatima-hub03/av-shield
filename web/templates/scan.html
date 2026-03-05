@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AV-Shield — Scanner</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+    <div class="nav-brand">🛡️ AV-Shield</div>
+    <div class="nav-links">
+        <a href="/">Dashboard</a>
+        <a href="/scan" class="active">Scanner</a>
+        <a href="/quarantine">Quarantaine</a>
+        <a href="/reports-page">Rapports</a>
+    </div>
+</nav>
+
+<div class="container">
+
+    <h1 class="page-title">🔍 Scanner un Fichier ou Dossier</h1>
+
+    <!-- FORMULAIRE DE SCAN -->
+    <div class="scan-card">
+
+        <div class="form-group">
+            <label>📁 Chemin à scanner</label>
+            <input type="text" id="scan-path"
+                   placeholder="/home/fatima/Downloads"
+                   class="scan-input">
+        </div>
+
+        <div class="form-group">
+            <label>⚙️ Options</label>
+            <div class="options-grid">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="opt-auto">
+                    🔒 Quarantaine automatique
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="opt-report" checked>
+                    📄 Générer rapport JSON
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="opt-html">
+                    🌐 Générer rapport HTML
+                </label>
+            </div>
+        </div>
+
+        <button onclick="startScan()" class="btn-scan" id="scan-btn">
+            🔍 Lancer le Scan
+        </button>
+
+    </div>
+
+    <!-- PROGRESSION -->
+    <div id="progress-section" class="hidden">
+        <div class="progress-card">
+            <div class="progress-title">⏳ Scan en cours...</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <div id="progress-text">Initialisation...</div>
+        </div>
+    </div>
+
+    <!-- RÉSULTATS -->
+    <div id="results-section" class="hidden">
+
+        <h2>📊 Résultats du Scan</h2>
+
+        <!-- STATS RÉSULTATS -->
+        <div class="stats-grid" id="result-stats"></div>
+
+        <!-- TABLEAU FICHIERS -->
+        <div class="section">
+            <h3>📁 Fichiers Analysés</h3>
+            <table class="table" id="result-table">
+                <thead>
+                    <tr>
+                        <th>Fichier</th>
+                        <th>Résultat</th>
+                        <th>Menace</th>
+                        <th>Score</th>
+                        <th>Entropie</th>
+                    </tr>
+                </thead>
+                <tbody id="result-tbody">
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <!-- ERREUR -->
+    <div id="error-section" class="hidden">
+        <div class="error-card">
+            <div class="error-title">❌ Erreur</div>
+            <div id="error-message"></div>
+        </div>
+    </div>
+
+</div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+function startScan() {
+    const path    = document.getElementById('scan-path').value.trim();
+    const auto    = document.getElementById('opt-auto').checked;
+    const report  = document.getElementById('opt-report').checked;
+    const html    = document.getElementById('opt-html').checked;
+
+    if (!path) {
+        alert('⚠️ Entrez un chemin à scanner !');
+        return;
+    }
+
+    /* Masquer résultats précédents */
+    document.getElementById('results-section').classList.add('hidden');
+    document.getElementById('error-section').classList.add('hidden');
+
+    /* Afficher progression */
+    document.getElementById('progress-section').classList.remove('hidden');
+    document.getElementById('scan-btn').disabled = true;
+    document.getElementById('scan-btn').textContent = '⏳ Scan en cours...';
+
+    /* Animation barre progression */
+    let progress = 0;
+    const interval = setInterval(() => {
+        progress += 2;
+        if (progress > 90) progress = 90;
+        document.getElementById('progress-fill').style.width = progress + '%';
+    }, 200);
+
+    /* Appel API */
+    fetch('/api/scan', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            path   : path,
+            auto   : auto,
+            report : report,
+            html   : html
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        clearInterval(interval);
+        document.getElementById('progress-fill').style.width = '100%';
+        document.getElementById('progress-section').classList.add('hidden');
+        document.getElementById('scan-btn').disabled = false;
+        document.getElementById('scan-btn').textContent = '🔍 Lancer le Scan';
+
+        if (data.error) {
+            document.getElementById('error-message').textContent = data.error;
+            document.getElementById('error-section').classList.remove('hidden');
+        } else {
+            showResults(data);
+        }
+    })
+    .catch(err => {
+        clearInterval(interval);
+        document.getElementById('progress-section').classList.add('hidden');
+        document.getElementById('scan-btn').disabled = false;
+        document.getElementById('scan-btn').textContent = '🔍 Lancer le Scan';
+        document.getElementById('error-message').textContent = err.toString();
+        document.getElementById('error-section').classList.remove('hidden');
+    });
+}
+
+function showResults(data) {
+  const report = data.report;
+ 
+  let total = 0, clean = 0, suspicious = 0, malware = 0;
+  let files = [];
+
+  // Priorité : lire depuis report.statistics
+  if (report && report.statistics) {
+    total      = report.statistics.total_files      || 0;
+    clean      = report.statistics.clean_files      || 0;
+    suspicious = report.statistics.suspicious_files || 0;
+    malware    = report.statistics.malware_files    || 0;
+  } else {
+    // Fallback regex sur stdout
+    const raw = ((data.output || "") + "\n" + (data.errors || ""))
+                .replace(/\u001b\[[0-9;]*m/g, "");
+    total      = (raw.match(/Total\s*:\s*(\d+)/)    || [,0])[1] | 0;
+    clean      = (raw.match(/Propres\s*:\s*(\d+)/)  || [,0])[1] | 0;
+    suspicious = (raw.match(/Suspects\s*:\s*(\d+)/) || [,0])[1] | 0;
+    malware    = (raw.match(/Malwares\s*:\s*(\d+)/) || [,0])[1] | 0;
+  }
+
+  // Lire les fichiers
+  if (report && report.files && Array.isArray(report.files)) {
+    files = report.files;
+  } else if (data.files && Array.isArray(data.files)) {
+    files = data.files;
+  }
+
+  // Afficher les cartes (APRÈS avoir les bonnes valeurs)
+  document.getElementById('result-stats').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-icon">📁</div>
+      <div class="stat-number">${total}</div>
+      <div class="stat-label">Total</div>
+    </div>
+    <div class="stat-card clean">
+      <div class="stat-icon">✅</div>
+      <div class="stat-number">${clean}</div>
+      <div class="stat-label">Propres</div>
+    </div>
+    <div class="stat-card warning">
+      <div class="stat-icon">⚠️</div>
+      <div class="stat-number">${suspicious}</div>
+      <div class="stat-label">Suspects</div>
+    </div>
+    <div class="stat-card danger">
+      <div class="stat-icon">☠️</div>
+      <div class="stat-number">${malware}</div>
+      <div class="stat-label">Malwares</div>
+    </div>
+  `;
+
+  // Remplir le tableau
+  const tbody = document.getElementById("result-tbody");
+  tbody.innerHTML = "";
+
+  if (files.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">Aucun détail disponible</td></tr>`;
+  } else {
+    files.forEach(f => {
+      const resultClass = f.result === 'MALWARE'    ? 'danger'  :
+                          f.result === 'SUSPICIOUS'  ? 'warning' : 'clean';
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><code>${f.filename || "-"}</code></td>
+        <td class="${resultClass}">${f.result || "-"}</td>
+        <td>${f.threat || "-"}</td>
+        <td>${f.heuristic_score ?? "-"}</td>
+        <td>${f.entropy ?? "-"}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  document.getElementById('results-section').classList.remove('hidden');
+}  
+       
+</script>
+
+</body>
+</html>

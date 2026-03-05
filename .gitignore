@@ -1,0 +1,6 @@
+quarantine/
+reports/
+database/
+__pycache__/
+*.pyc
+*.db

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AV-Shield — Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+    <div class="nav-brand">🛡️ AV-Shield</div>
+    <div class="nav-links">
+        <a href="/" class="active">Dashboard</a>
+        <a href="/scan">Scanner</a>
+        <a href="/quarantine">Quarantaine</a>
+        <a href="/reports-page">Rapports</a>
+    </div>
+</nav>
+
+<!-- CONTENU PRINCIPAL -->
+<div class="container">
+
+    <h1 class="page-title">📊 Dashboard</h1>
+
+    <!-- CARTES STATISTIQUES -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">🔍</div>
+            <div class="stat-number">{{ stats.total_scans }}</div>
+            <div class="stat-label">Scans Total</div>
+        </div>
+        <div class="stat-card clean">
+            <div class="stat-icon">✅</div>
+            <div class="stat-number">{{ stats.total_clean }}</div>
+            <div class="stat-label">Fichiers Propres</div>
+        </div>
+        <div class="stat-card danger">
+            <div class="stat-icon">☠️</div>
+            <div class="stat-number">{{ stats.total_threats }}</div>
+            <div class="stat-label">Menaces Détectées</div>
+        </div>
+        <div class="stat-card warning">
+            <div class="stat-icon">🔒</div>
+            <div class="stat-number">{{ stats.total_quarantine }}</div>
+            <div class="stat-label">En Quarantaine</div>
+        </div>
+    </div>
+
+    <!-- BOUTON SCAN RAPIDE -->
+    <div class="quick-scan">
+        <h2>⚡ Scan Rapide</h2>
+        <div class="scan-form">
+            <input type="text" id="quick-path"
+                   placeholder="/home/fatima/Downloads"
+                   class="scan-input">
+            <button onclick="quickScan()" class="btn-scan">
+                🔍 Scanner
+            </button>
+        </div>
+        <div id="scan-result" class="scan-result hidden"></div>
+    </div>
+
+    <!-- DERNIERS SCANS -->
+    <div class="section">
+        <h2>🕐 Derniers Scans</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID Scan</th>
+                    <th>Cible</th>
+                    <th>Total</th>
+                    <th>Propres</th>
+                    <th>Suspects</th>
+                    <th>Malwares</th>
+                    <th>Durée</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for scan in scans %}
+                <tr>
+                    <td><code>{{ scan.scan_id }}</code></td>
+                    <td>{{ scan.target_path }}</td>
+                    <td>{{ scan.total_files }}</td>
+                    <td class="clean">{{ scan.clean_files }}</td>
+                    <td class="warning">{{ scan.suspicious_files }}</td>
+                    <td class="danger">{{ scan.malware_files }}</td>
+                    <td>{{ "%.2f"|format(scan.scan_duration) }}s</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="empty">
+                        Aucun scan effectué
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- DERNIÈRES MENACES -->
+    <div class="section">
+        <h2>⚠️ Dernières Menaces</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Fichier</th>
+                    <th>Menace</th>
+                    <th>SHA-256</th>
+                    <th>Score</th>
+                    <th>Entropie</th>
+                    <th>Quarantaine</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for threat in threats %}
+                <tr>
+                    <td>{{ threat.filepath.split('/')[-1] }}</td>
+                    <td class="danger">{{ threat.threat_name }}</td>
+                    <td><code>{{ threat.sha256[:16] }}...</code></td>
+                    <td>{{ threat.heuristic_score }}</td>
+                    <td>{{ "%.2f"|format(threat.entropy_value) }}</td>
+                    <td>
+                        {% if threat.quarantined %}
+                        <span class="badge danger">Isolé</span>
+                        {% else %}
+                        <span class="badge warning">Non isolé</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="empty">
+                        Aucune menace détectée
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+function quickScan() {
+    const path = document.getElementById('quick-path').value;
+    if (!path) {
+        alert('Entrez un chemin à scanner');
+        return;
+    }
+
+    const resultDiv = document.getElementById('scan-result');
+    resultDiv.className = 'scan-result';
+    resultDiv.innerHTML = '⏳ Scan en cours...';
+
+    fetch('/api/scan', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: path})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+        resultDiv.innerHTML = '❌ Erreur: ' + data.error;
+        resultDiv.className = 'scan-result danger';
+        return;
+    }
+
+    let html = "✅ Scan terminé<br><br>";
+
+    // ------------------------
+    // QUARANTAINE
+    // ------------------------
+    if (data.quarantined) {
+
+        html += `
+        <div style="color:green;font-weight:bold">
+        ✔ Fichier isolé en quarantaine<br>
+        📁 ${data.quarantine_file}
+        </div><br>
+        `;
+
+    }
+
+    // ------------------------
+    // BOUTON RAPPORT HTML
+    // ------------------------
+    if (data.html_report_path) {
+
+        const htmlFile = data.html_report_path.split("/").pop();
+
+        html += `
+        <a class="btn btn-info"
+           target="_blank"
+           href="/reports/${htmlFile}">
+           Voir rapport HTML
+        </a><br><br>
+        `;
+
+    }
+
+    // ------------------------
+    // BOUTON RAPPORT JSON
+    // ------------------------
+    if (data.report_path) {
+
+        const jsonFile = data.report_path.split("/").pop();
+
+        html += `
+        <a class="btn btn-secondary"
+           href="/reports/${jsonFile}"
+           download>
+           Télécharger rapport JSON
+        </a><br><br>
+        `;
+
+    }
+
+    html += `<a href="/">Actualiser</a>`;
+
+    resultDiv.innerHTML = html;
+    resultDiv.className = 'scan-result clean';
+    })
+    .catch(err => {
+        resultDiv.innerHTML = '❌ Erreur: ' + err;
+        resultDiv.className = 'scan-result danger';
+    });
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AV-Shield — Quarantaine</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+    <div class="nav-brand">🛡️ AV-Shield</div>
+    <div class="nav-links">
+        <a href="/">Dashboard</a>
+        <a href="/scan">Scanner</a>
+        <a href="/quarantine" class="active">Quarantaine</a>
+    </div>
+</nav>
+
+<div class="container">
+
+    <h1 class="page-title">🔒 Fichiers en Quarantaine</h1>
+
+    <!-- COMPTEUR -->
+    <div class="quarantine-header">
+        <div class="quarantine-count">
+            <span class="count-number">{{ files|length }}</span>
+            fichier(s) isolé(s)
+        </div>
+        <div class="quarantine-info">
+            ⚠️ Ces fichiers sont isolés et ne peuvent pas s'exécuter
+        </div>
+    </div>
+
+    <!-- TABLEAU QUARANTAINE -->
+    <div class="section">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Fichier Original</th>
+                    <th>Menace</th>
+                    <th>SHA-256</th>
+                    <th>Taille</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for file in files %}
+                <tr id="row-{{ loop.index }}">
+                    <td>
+                        <code>{{ file.original_path.split('/')[-1] }}</code>
+                        <br>
+                        <small class="path">{{ file.original_path }}</small>
+                    </td>
+                    <td>
+                        <span class="badge danger">
+                            {{ file.threat_name }}
+                        </span>
+                    </td>
+                    <td>
+                        <code>{{ file.sha256[:16] if file.sha256 else 'N/A' }}...</code>
+                    </td>
+                    <td>{{ file.filesize }} octets</td>
+                    <td>{{ file.quarantine_date }}</td>
+                    <td>
+                        <button class="btn-restore"
+                            onclick="restoreFile('{{ file.quarantine_path.split('/')[-1] }}', {{ loop.index }})">
+                            ♻️ Restaurer
+                        </button>
+                        <button class="btn-delete"
+                            onclick="deleteFile('{{ file.quarantine_path.split('/')[-1] }}', {{ loop.index }})">
+                            🗑️ Supprimer
+                        </button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="empty">
+                        ✅ Quarantaine vide — Aucun fichier isolé
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- MESSAGE CONFIRMATION -->
+    <div id="action-message" class="hidden"></div>
+
+</div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+function restoreFile(name, index) {
+    if (!confirm('⚠️ Restaurer ce fichier ? Il sera remis à son emplacement original.')) return;
+
+    fetch('/api/quarantine/restore', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: name})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showMessage('✅ Fichier restauré avec succès !', 'clean');
+            document.getElementById('row-' + index).remove();
+        } else {
+            showMessage('❌ Erreur: ' + (data.error || 'Inconnue'), 'danger');
+        }
+    })
+    .catch(err => showMessage('❌ Erreur: ' + err, 'danger'));
+}
+
+function deleteFile(name, index) {
+    if (!confirm('🗑️ Supprimer définitivement ce fichier ? Cette action est irréversible !')) return;
+
+    fetch('/api/quarantine/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: name})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showMessage('✅ Fichier supprimé définitivement.', 'clean');
+            document.getElementById('row-' + index).remove();
+        } else {
+            showMessage('❌ Erreur: ' + (data.error || 'Inconnue'), 'danger');
+        }
+    })
+    .catch(err => showMessage('❌ Erreur: ' + err, 'danger'));
+}
+
+function showMessage(msg, type) {
+    const div = document.getElementById('action-message');
+    div.textContent = msg;
+    div.className = 'action-message ' + type;
+    setTimeout(() => div.className = 'action-message hidden', 3000);
+}
+</script>
+
+</body>
+</html>

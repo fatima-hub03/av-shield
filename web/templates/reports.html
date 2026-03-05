@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AV-Shield — Rapports</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<nav class="navbar">
+    <div class="nav-brand">🛡️ AV-Shield</div>
+    <div class="nav-links">
+        <a href="/">Dashboard</a>
+        <a href="/scan">Scanner</a>
+        <a href="/quarantine">Quarantaine</a>
+        <a href="/reports-page" class="active">Rapports</a>
+    </div>
+</nav>
+<div class="container">
+    <h1 class="page-title">📄 Rapports de Scan</h1>
+    <div class="section">
+        <table class="table" id="reports-table">
+            <thead>
+                <tr>
+                    <th>Nom du rapport</th>
+                    <th>Type</th>
+                    <th>Taille</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="reports-tbody">
+                <tr><td colspan="4" class="empty">Chargement...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+function loadReports() {
+    fetch('/api/reports')
+        .then(r => r.json())
+        .then(data => {
+            const tbody = document.getElementById('reports-tbody');
+            tbody.innerHTML = '';
+            if (!data.length) {
+                tbody.innerHTML = '<tr><td colspan="4" class="empty">Aucun rapport disponible</td></tr>';
+                return;
+            }
+            // Trier par nom décroissant (plus récent en premier)
+            data.sort((a, b) => b.name.localeCompare(a.name));
+            data.forEach(r => {
+                const isHTML = r.name.endsWith('.html');
+                const isJSON = r.name.endsWith('.json');
+                const type = isHTML ? '🌐 HTML' : isJSON ? '📋 JSON' : '📄';
+                const size = r.size < 1024 ? r.size + ' B' :
+                             r.size < 1024*1024 ? (r.size/1024).toFixed(1) + ' KB' :
+                             (r.size/1024/1024).toFixed(1) + ' MB';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><code>${r.name}</code></td>
+                    <td>${type}</td>
+                    <td>${size}</td>
+                    <td>
+                        ${isHTML ? `<a href="/reports/${r.name}" target="_blank" class="btn-small">👁️ Voir</a>` : ''}
+                        <a href="/reports/download/${r.name}" class="btn-small">⬇️ Télécharger</a>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        })
+        .catch(() => {
+            document.getElementById('reports-tbody').innerHTML =
+                '<tr><td colspan="4" class="empty">Erreur de chargement</td></tr>';
+        });
+}
+document.addEventListener('DOMContentLoaded', loadReports);
+</script>
+</body>
+</html>
