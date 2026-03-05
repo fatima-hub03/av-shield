@@ -105,7 +105,8 @@ def api_scan():
             timeout=300,
             cwd=os.path.dirname(os.path.abspath(AVSHIELD_BIN))
         )
-
+        import time
+        time.sleep(0.5)
         report_json = None
         report_json_path = None
         report_html_path = None
@@ -142,14 +143,19 @@ def api_scan():
             f for f in os.listdir(REPORTS_DIR)
             if f.startswith("RPT_") and f.endswith(".json")
         ]
+        json_path = None
+        json_file = None
         if json_reports:
             latest = max(
                 (os.path.join(REPORTS_DIR, f) for f in json_reports),
                 key=os.path.getmtime
             )
+            json_path = latest
+            json_file = os.path.basename(json_path)
 
         # Utiliser seulement si généré dans les 10 dernières secondes
-  
+        import time
+        time.sleep(0.5)
         json_path = latest
         json_file = os.path.basename(json_path)
 
