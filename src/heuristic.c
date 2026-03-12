@@ -13,6 +13,14 @@ static const IoCIndicator ioc_indicators[] = {
     { "rundll32",          30, "Execution DLL suspecte"               },
     { "mshta",             35, "HTA Application suspecte"             },
 
+    /* Python malveillant */
+    { "socket.connect",    25, "Connexion reseau Python suspecte"     },
+    { "socket.socket",     20, "Creation socket suspecte"             },
+    { "os.popen",          25, "Execution commande OS suspecte"       },
+    { "os.system",         20, "Execution systeme suspecte"           },
+    { "subprocess.Popen",  25, "Sous-processus suspect"               },
+    { "reverse_shell",     50, "Reverse shell detecte"                },
+    { "bind_shell",        50, "Bind shell detecte"                   },
     /* Téléchargement et réseau */
     { "wget",              20, "Telechargement reseau suspect"        },
     { "curl",              20, "Telechargement reseau suspect"        },

@@ -116,7 +116,7 @@
             <tbody>
                 {% for threat in threats %}
                 <tr>
-                    <td>{{ threat.filepath.split('/')[-1] }}</td>
+                    <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ threat.filepath.split('/')[-1] }}">{{ threat.filepath.split('/')[-1] }}</td>
                     <td class="danger">{{ threat.threat_name }}</td>
                     <td><code>{{ threat.sha256[:16] }}...</code></td>
                     <td>{{ threat.heuristic_score }}</td>

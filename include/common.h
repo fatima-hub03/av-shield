@@ -33,7 +33,7 @@
 
 /* Seuils de détection */
 #define ENTROPY_THRESHOLD    7.0         
-#define HEURISTIC_THRESHOLD  50          
+#define HEURISTIC_THRESHOLD  40          
 
 /* Chemins */
 #define QUARANTINE_DIR       "quarantine/"
