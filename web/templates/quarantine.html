@@ -67,8 +67,11 @@
                     <td>{{ file.quarantine_date }}</td>
                     <td>
                         <button class="btn-restore"
-                            onclick="restoreFile('{{ file.quarantine_path.split('/')[-1] }}', {{ loop.index }})">
-                            ♻️ Restaurer
+                            onclick="restoreFile('{{ file.quarantine_path.split('/')[-1] }}', {{ loop.index }}, {{ file.filesize }})"
+                            {% if file.filesize > 2147483648 %}
+                            style="opacity:0.5;cursor:not-allowed;" disabled title="Fichier trop volumineux (>2Go)"
+                            {% endif %}>
+                            ♻️ Restaurer {% if file.filesize > 2147483648 %}(>2Go){% endif %}
                         </button>
                         <button class="btn-delete"
                             onclick="deleteFile('{{ file.quarantine_path.split('/')[-1] }}', {{ loop.index }})">
@@ -94,7 +97,12 @@
 
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 <script>
-function restoreFile(name, index) {
+function restoreFile(name, index, filesize) {
+    const maxSize = 2 * 1024 * 1024 * 1024; // 2Go
+    if (filesize && filesize > maxSize) {
+        alert('❌ Restauration impossible — Fichier trop volumineux (>' + (filesize/1024/1024/1024).toFixed(2) + ' Go). Limite : 2 Go.');
+        return;
+    }
     if (!confirm('⚠️ Restaurer ce fichier ? Il sera remis à son emplacement original.')) return;
 
     fetch('/api/quarantine/restore', {

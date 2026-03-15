@@ -152,10 +152,12 @@ int scanner_scan_file(const char *filepath, FileReport *report) {
             report->final_result  = RESULT_MALWARE;
             strncpy(report->threat_name, known.threat_name,
                     MAX_THREAT_NAME - 1);
-            /* Quarantaine immédiate si malware connu */
-            quarantine_add(report);
-            database_save_quarantine(&g_db, report);
-            report->quarantined = 1;
+            /* Quarantaine seulement si auto activé */
+            if (g_config.quarantine_auto) {
+                quarantine_add(report);
+                database_save_quarantine(&g_db, report);
+                report->quarantined = 1;
+            }
             goto scan_done;
         }
     }
@@ -187,7 +189,7 @@ scan_done:
    - SUSPICIOUS : seulement si option utilisateur cochée
    ============================== */
 
-if (report->final_result == RESULT_MALWARE && !report->quarantined) {
+if (report->final_result == RESULT_MALWARE && !report->quarantined && g_config.quarantine_auto) {
 
     quarantine_add(report);
     database_save_quarantine(&g_db, report);
@@ -197,7 +199,7 @@ if (report->final_result == RESULT_MALWARE && !report->quarantined) {
 
     report->quarantined = 1;
 
-} else if (report->final_result == RESULT_SUSPICIOUS && !report->quarantined) {
+} else if (report->final_result == RESULT_SUSPICIOUS && !report->quarantined && g_config.quarantine_auto) {
 
     quarantine_add(report);
     database_save_quarantine(&g_db, report);

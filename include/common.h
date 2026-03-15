@@ -68,6 +68,7 @@ typedef struct {
     ScanResult final_result;
     char scan_time[64];
     int quarantined;
+    int quarantine_auto;
     char quarantine_path[MAX_PATH_LEN];
 } FileReport;
 

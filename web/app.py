@@ -67,6 +67,9 @@ def api_scan():
     auto = bool(data.get('auto', False))
     want_json = bool(data.get('report', False))   # checkbox "Générer rapport JSON"
     want_html = bool(data.get('html', False))     # checkbox "Générer rapport HTML"
+    # Scan manuel → quarantaine automatique si MALWARE ou SUSPICIOUS
+    if not data.get('realtime'):
+        auto = True
 
     # Vérifier que le chemin existe
     if not os.path.exists(path):
@@ -93,6 +96,8 @@ def api_scan():
 
     # Toujours générer le rapport JSON pour afficher les détails
     cmd.append('--report')
+    if auto:
+        cmd.append('--auto')
 
     if want_html:
         cmd.append('--html')
@@ -351,11 +356,56 @@ def download_report(filename):
     return send_from_directory(REPORTS_DIR, filename, as_attachment=False)
 
 # ============================================
+#   ANALYSE IA
+# ============================================
+@app.route('/api/ai-analyze', methods=['POST'])
+def ai_analyze():
+    try:
+        import sys, os
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from ai_analyzer import analyze_threat
+        data = request.get_json()
+        filename     = data.get('filename', '')
+        result       = data.get('result', '')
+        threat_name  = data.get('threat_name', '')
+        heuristic_score = data.get('heuristic_score', 0)
+        entropy      = data.get('entropy', 0)
+        analysis = analyze_threat(filename, result, threat_name, heuristic_score, entropy)
+        return jsonify({'success': True, 'analysis': analysis})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ============================================
 #   DÉMARRAGE
 # ============================================
+@app.route('/api/realtime-events')
+def realtime_events():
+    import json, os
+    events_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../database/realtime_events.json')
+    if os.path.exists(events_file):
+        with open(events_file) as f:
+            events = json.load(f)
+    else:
+        events = []
+    return jsonify(events)
+
+@app.route('/api/threat-intel', methods=['POST'])
+def threat_intel():
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from threat_intelligence import check_virustotal
+    data = request.get_json()
+    sha256 = data.get('sha256', '')
+    if not sha256:
+        return jsonify({'error': 'SHA256 manquant'}), 400
+    result = check_virustotal(sha256)
+    return jsonify(result)
+
 if __name__ == '__main__':
     print("\n🛡️  AV-Shield Web Interface")
     print("=" * 40)
     print("URL: http://localhost:5000")
     print("=" * 40 + "\n")
     app.run(debug=True, host='0.0.0.0', port=5000)
+
+
